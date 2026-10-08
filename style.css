@@ -1,13 +1,13 @@
 :root {
-  --bg: #f4f5f2;
+  --bg: #f6f4f4;
   --surface: #ffffff;
-  --fg: #19201b;
-  --muted: #6b766e;
-  --line: #e1e5df;
-  --accent: #1f6b3a;
+  --fg: #211a1b;
+  --muted: #776b6d;
+  --line: #e7e1e2;
+  --accent: #7b1e2c;
   --accent-fg: #ffffff;
   --warn: #b45309;
-  --danger: #b42318;
+  --danger: #7b1e2c;
   --radius: 12px;
   --display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --body: "Barlow", system-ui, sans-serif;
@@ -16,15 +16,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111613;
-    --surface: #1a211c;
-    --fg: #e8ede9;
-    --muted: #8e9a91;
-    --line: #29322c;
-    --accent: #5fd08a;
-    --accent-fg: #0d1a12;
+    --bg: #151112;
+    --surface: #1f191a;
+    --fg: #eee8e9;
+    --muted: #9d9093;
+    --line: #342b2d;
+    --accent: #a3283b;
+    --accent-fg: #ffffff;
     --warn: #f5b74a;
-    --danger: #f27b70;
+    --danger: #e38a97;
     color-scheme: dark;
   }
 }
@@ -132,7 +132,7 @@ video {
   aspect-ratio: 4 / 3;
   max-width: 100%;
   border-radius: var(--radius);
-  background: #0b0f0c;
+  background: #0f0b0c;
   object-fit: cover;
 }
 
