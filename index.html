@@ -3,80 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14532d">
   <title>Cross Chrono</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Barlow:wght@400;600&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>Cross Chrono</h1>
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="runners">Coureurs</button>
-      <button role="tab" data-tab="bibs">Dossards</button>
-      <button role="tab" data-tab="finish">Arrivée</button>
-      <button role="tab" data-tab="results">Classement</button>
-    </nav>
-  </header>
+  <nav class="tabs">
+    <button data-tab="runners">Coureurs</button>
+    <button data-tab="race">Course</button>
+    <button data-tab="results">Résultats</button>
+  </nav>
 
   <main>
     <section id="tab-runners" class="panel" hidden>
-      <h2>Liste des coureurs</h2>
-      <p class="hint">Un coureur par ligne : <code>Nom ; Course</code>. Un numéro en tête de ligne fixe le dossard (<code>12 ; Léa Martin ; 6e filles</code>). Un copier-coller depuis un tableur marche aussi.</p>
-      <textarea id="runners-input" rows="10" placeholder="Léa Martin ; 6e filles&#10;Hugo Bernard ; 6e garçons&#10;Inès Petit ; 6e filles"></textarea>
-      <div class="row">
-        <label for="first-bib">Premier dossard</label>
-        <input id="first-bib" type="number" min="1" value="1">
-        <button id="import-runners" class="primary">Enregistrer la liste</button>
+      <label for="runners-input">Un coureur par ligne : nom ; course</label>
+      <textarea id="runners-input" rows="12" placeholder="Léa Martin ; 6e filles&#10;Hugo Bernard ; 6e garçons"></textarea>
+      <div class="actions">
+        <button id="save-runners" class="primary">Enregistrer</button>
+        <button id="print-bibs">Imprimer les dossards</button>
       </div>
-      <div class="row">
-        <label for="anon-count">Ou seulement des numéros</label>
-        <input id="anon-count" type="number" min="1" value="50">
-        <button id="generate-anon">Générer</button>
-      </div>
-      <p id="runners-status" class="status"></p>
-      <div id="runners-summary"></div>
+      <p id="runners-status" class="muted"></p>
     </section>
 
-    <section id="tab-bibs" class="panel" hidden>
-      <div class="row no-print">
-        <h2>Dossards</h2>
-        <button id="print-bibs" class="primary">Imprimer</button>
-      </div>
-      <p class="hint no-print">Quatre dossards par page A4. Le QR code contient le numéro seul : une douchette code-barres fonctionne aussi.</p>
-      <div id="bib-sheet" class="bib-sheet"></div>
-    </section>
-
-    <section id="tab-finish" class="panel" hidden>
-      <h2>Départs</h2>
-      <div id="starts" class="starts"></div>
-
-      <h2>Arrivées</h2>
-      <div class="scanner">
-        <video id="video" playsinline muted hidden></video>
-        <button id="toggle-scan" class="primary big">Lancer le scan</button>
-      </div>
-      <form id="manual-form" class="row">
-        <label for="manual-bib">Dossard</label>
-        <input id="manual-bib" type="number" inputmode="numeric" min="1" autocomplete="off">
-        <button type="submit" class="primary">Valider</button>
-        <button type="button" id="no-bib">Sans dossard</button>
+    <section id="tab-race" class="panel" hidden>
+      <ul id="starts" class="starts"></ul>
+      <video id="video" playsinline muted hidden></video>
+      <button id="toggle-scan" class="primary big">Scanner</button>
+      <form id="manual-form" class="actions">
+        <input id="manual-bib" type="number" inputmode="numeric" min="1" autocomplete="off" aria-label="Numéro de dossard" placeholder="N° de dossard">
+        <button type="submit">Valider</button>
       </form>
       <p id="flash" class="flash" aria-live="assertive"></p>
-      <ol id="recent" class="recent"></ol>
     </section>
 
     <section id="tab-results" class="panel" hidden>
-      <div class="row">
-        <h2>Classement</h2>
-        <button id="export-csv" class="primary">Exporter en CSV</button>
-        <button id="reset-all" class="danger" data-confirm>Tout effacer</button>
-      </div>
       <div id="results"></div>
+      <div class="actions">
+        <button id="export-csv" class="primary">Exporter</button>
+        <button id="reset-all" class="ghost danger" data-confirm>Tout effacer</button>
+      </div>
     </section>
   </main>
 
+  <div id="bib-sheet" class="bib-sheet"></div>
   <canvas id="frame" hidden></canvas>
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsQR.js"></script>

@@ -27,6 +27,28 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function formatElapsed(ms) {
+  if (ms == null) return '';
+  const seconds = Math.floor(ms / 1000) % 60;
+  const minutes = Math.floor(ms / 60000) % 60;
+  const hours = Math.floor(ms / 3600000);
+  return hours ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function formatClock(time) {
+  const d = new Date(time);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function parseBib(value) {
+  const match = String(value ?? '').trim().match(/^\d{1,6}$/);
+  return match ? Number(match[0]) : null;
+}
+
 function runnerByBib(bib) {
   return state.runners.find((r) => r.bib === bib);
 }
@@ -43,32 +65,8 @@ function raceOf(bib) {
   return all.length === 1 ? all[0] : UNLISTED_RACE;
 }
 
-function pad(n, size = 2) {
-  return String(n).padStart(size, '0');
-}
-
-function formatElapsed(ms) {
-  if (ms == null) return '';
-  const tenths = Math.floor(ms / 100) % 10;
-  const seconds = Math.floor(ms / 1000) % 60;
-  const minutes = Math.floor(ms / 60000) % 60;
-  const hours = Math.floor(ms / 3600000);
-  const base = `${pad(minutes)}:${pad(seconds)}.${tenths}`;
-  return hours ? `${hours}:${base}` : base;
-}
-
-function formatClock(time) {
-  const d = new Date(time);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function parseBib(value) {
-  const match = String(value ?? '').trim().match(/^\d{1,6}$/);
-  return match ? Number(match[0]) : null;
-}
-
-function parseRunners(text, firstBib) {
-  let next = firstBib;
+function parseRunners(text) {
+  let next = 1;
   return text.split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
     const fields = line.split(/[;\t]/).map((f) => f.trim());
     const bib = /^\d+$/.test(fields[0]) ? Number(fields.shift()) : next;
@@ -82,37 +80,22 @@ function duplicateBibs(runners) {
   return runners.filter((r) => seen.has(r.bib) || !seen.add(r.bib)).map((r) => r.bib);
 }
 
-function setStatus(message, kind) {
-  const el = $('#runners-status');
-  el.textContent = message;
-  el.className = `status ${kind}`;
-}
-
-function replaceRunners(runners) {
-  const duplicates = duplicateBibs(runners);
-  if (duplicates.length) return setStatus(`Dossards en double : ${duplicates.join(', ')}`, 'error');
-  state.runners = runners;
-  save();
-  setStatus(`${runners.length} coureurs enregistrés`, 'ok');
-  render();
-}
-
-function importRunners() {
-  const firstBib = Number($('#first-bib').value) || 1;
-  const runners = parseRunners($('#runners-input').value, firstBib);
-  if (!runners.length) return setStatus('La liste est vide', 'error');
-  replaceRunners(runners);
-}
-
-function generateAnonymous() {
-  const firstBib = Number($('#first-bib').value) || 1;
-  const count = Math.min(Number($('#anon-count').value) || 0, 2000);
-  if (!count) return setStatus('Indique un nombre de dossards', 'error');
-  replaceRunners(Array.from({ length: count }, (_, i) => ({ bib: firstBib + i, name: '', race: DEFAULT_RACE })));
-}
-
 function runnersToText() {
   return state.runners.map((r) => [r.bib, r.name, r.race].join(' ; ')).join('\n');
+}
+
+function plural(count, word) {
+  return `${count} ${word}${count > 1 ? 's' : ''}`;
+}
+
+function saveRunners() {
+  const runners = parseRunners($('#runners-input').value);
+  const duplicates = duplicateBibs(runners);
+  if (duplicates.length) return void ($('#runners-status').textContent = `Dossards en double : ${duplicates.join(', ')}`);
+  state.runners = runners;
+  save();
+  $('#runners-input').value = runnersToText();
+  render();
 }
 
 function beep(frequency) {
@@ -126,24 +109,23 @@ function beep(frequency) {
   osc.stop(audio.currentTime + 0.12);
 }
 
-function flash(message, kind) {
+function flash(message, ok) {
   const el = $('#flash');
   el.textContent = message;
-  el.className = `flash ${kind}`;
-  beep(kind === 'ok' ? 1320 : 440);
-  navigator.vibrate?.(kind === 'ok' ? 80 : [60, 60, 60]);
+  el.className = ok ? 'flash' : 'flash warn';
+  beep(ok ? 1320 : 440);
+  navigator.vibrate?.(ok ? 80 : [60, 60, 60]);
 }
 
 function record(bib, fromScan) {
   const now = Date.now();
   if (fromScan && now - (lastSeen.get(bib) ?? 0) < SCAN_COOLDOWN_MS) return;
   lastSeen.set(bib, now);
-  if (bib != null && state.finishes.some((f) => f.bib === bib)) return flash(`${bib} déjà arrivé`, 'warn');
+  if (state.finishes.some((f) => f.bib === bib)) return flash(`${bib} déjà arrivé`, false);
   state.finishes.push({ id: `${now}-${Math.random().toString(36).slice(2, 7)}`, bib, time: now });
   save();
   const runner = runnerByBib(bib);
-  const expected = runner || bib == null || !state.runners.length;
-  flash(bib == null ? 'Arrivée sans dossard' : `${bib} ${runner?.name ?? ''}`, expected ? 'ok' : 'warn');
+  flash(runner?.name ? `${bib} ${runner.name}` : String(bib), Boolean(runner) || !state.runners.length);
   render();
 }
 
@@ -175,14 +157,6 @@ function cancelStart(race) {
 
 function deleteFinish(id) {
   state.finishes = state.finishes.filter((f) => f.id !== id);
-  save();
-  render();
-}
-
-function updateFinishBib(id, value) {
-  const finish = state.finishes.find((f) => f.id === id);
-  if (!finish) return;
-  finish.bib = parseBib(value);
   save();
   render();
 }
@@ -240,10 +214,10 @@ async function startScanner() {
     await video.play();
     const wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
     scanner = { video, stream, wakeLock, detector: await createDetector() };
-    $('#toggle-scan').textContent = 'Arrêter le scan';
+    $('#toggle-scan').textContent = 'Arrêter';
     scanLoop();
   } catch {
-    flash('Caméra indisponible : autorise-la, ou saisis les numéros à la main', 'warn');
+    flash('Caméra indisponible', false);
   }
 }
 
@@ -253,7 +227,7 @@ function stopScanner() {
   scanner.wakeLock?.release();
   scanner.video.hidden = true;
   scanner = null;
-  $('#toggle-scan').textContent = 'Lancer le scan';
+  $('#toggle-scan').textContent = 'Scanner';
 }
 
 function toggleScanner() {
@@ -261,16 +235,10 @@ function toggleScanner() {
   scanner ? stopScanner() : startScanner();
 }
 
-function renderRunnersSummary() {
-  if (!state.runners.length) {
-    $('#runners-summary').innerHTML = '<p class="empty">Aucun coureur pour l\'instant.</p>';
-    return;
-  }
-  const counts = races().map((race) => `<li>${escapeHtml(race)} : ${state.runners.filter((r) => r.race === race).length}</li>`);
-  const bibs = state.runners.map((r) => r.bib);
-  $('#runners-summary').innerHTML = `
-    <p>${state.runners.length} coureurs, dossards ${Math.min(...bibs)} à ${Math.max(...bibs)}.</p>
-    <ul class="race-list">${counts.join('')}</ul>`;
+function renderRunnersStatus() {
+  const count = state.runners.length;
+  $('#runners-status').textContent = count ? `${plural(count, 'coureur')}, ${plural(races().length, 'course')}` : '';
+  $('#print-bibs').hidden = !count;
 }
 
 function qrSvg(bib) {
@@ -281,31 +249,28 @@ function qrSvg(bib) {
 }
 
 function renderBibs() {
-  if (!state.runners.length) {
-    $('#bib-sheet').innerHTML = '<p class="empty">Enregistre d\'abord des coureurs dans l\'onglet Coureurs.</p>';
-    return;
-  }
   $('#bib-sheet').innerHTML = state.runners.map((r) => `
     <article class="bib-card">
-      <div class="race">${escapeHtml(r.race)}</div>
+      <div class="label">${escapeHtml(r.race)}</div>
       <div class="number">${r.bib}</div>
       <div class="qr">${qrSvg(r.bib)}</div>
-      <div class="name">${escapeHtml(r.name)}</div>
+      <div class="label">${escapeHtml(r.name)}</div>
     </article>`).join('');
 }
 
 function renderStarts() {
+  const label = (race) => races().length === 1 ? 'Chrono' : escapeHtml(race);
   $('#starts').innerHTML = races().map((race) => {
     const start = state.starts[race];
     const action = start
-      ? `<button data-cancel-start="${escapeHtml(race)}" data-confirm>Annuler le départ</button>`
-      : `<button class="primary" data-start="${escapeHtml(race)}">Donner le départ</button>`;
+      ? `<button class="ghost" data-cancel-start="${escapeHtml(race)}" data-confirm>Annuler</button>`
+      : `<button class="primary" data-start="${escapeHtml(race)}">Départ</button>`;
     return `
-      <div class="start-card">
-        <span class="name">${escapeHtml(race)}</span>
-        <span class="clock ${start ? '' : 'idle'}" data-clock="${escapeHtml(race)}">${start ? '' : '00:00.0'}</span>
+      <li>
+        <span class="name">${label(race)}</span>
+        <span class="clock ${start ? '' : 'idle'}" data-clock="${escapeHtml(race)}">00:00</span>
         ${action}
-      </div>`;
+      </li>`;
   }).join('');
   tickClocks();
 }
@@ -317,47 +282,38 @@ function tickClocks() {
   });
 }
 
-function renderRecent() {
-  const recent = [...state.finishes].sort((a, b) => b.time - a.time).slice(0, 8);
-  $('#recent').innerHTML = recent.map((f) => `
+function resultRow(f) {
+  const name = f.runner?.name || (f.runner ? '' : 'Inconnu');
+  return `
     <li>
-      <span class="bib">${f.bib ?? '?'}</span>
-      <span class="who">${escapeHtml(runnerByBib(f.bib)?.name || raceOf(f.bib))}</span>
-      <span>${formatClock(f.time)}</span>
-    </li>`).join('');
+      <span class="rank">${f.rank}</span>
+      <span class="who ${f.runner ? '' : 'unknown'}">${escapeHtml(name)}<small>${f.bib}</small></span>
+      <span class="time ${f.elapsed == null ? 'idle' : ''}">${formatElapsed(f.elapsed) || formatClock(f.time)}</span>
+      <button data-delete="${f.id}" data-confirm aria-label="Supprimer">&times;</button>
+    </li>`;
 }
 
 function renderResults() {
+  $('#export-csv').hidden = !state.finishes.length;
   if (!state.finishes.length) {
-    $('#results').innerHTML = '<p class="empty">Les arrivées s\'afficheront ici, course par course.</p>';
+    $('#results').innerHTML = '<p class="muted">Aucune arrivée.</p>';
     return;
   }
-  $('#results').innerHTML = rankedRaces().map((race) => {
-    const rows = ranking(race).map((f) => `
-      <tr class="${f.runner ? '' : 'unknown'}">
-        <td class="rank">${f.rank}</td>
-        <td><input type="number" value="${f.bib ?? ''}" data-edit-bib="${f.id}" aria-label="Dossard"></td>
-        <td>${escapeHtml(f.runner?.name ?? (f.bib == null ? 'Sans dossard' : 'Dossard inconnu'))}</td>
-        <td>${formatElapsed(f.elapsed)}</td>
-        <td>${formatClock(f.time)}</td>
-        <td><button data-delete="${f.id}" data-confirm>Supprimer</button></td>
-      </tr>`).join('');
-    return `
-      <div class="race-results">
-        <h2>${escapeHtml(race)}</h2>
-        ${rows ? `<div class="table-wrap"><table>
-          <thead><tr><th>Rang</th><th>Dossard</th><th>Nom</th><th>Temps</th><th>Arrivée</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table></div>` : '<p class="empty">Personne n\'est encore arrivé.</p>'}
-      </div>`;
-  }).join('');
+  const showTitles = rankedRaces().length > 1;
+  $('#results').innerHTML = rankedRaces()
+    .map((race) => ({ race, rows: ranking(race) }))
+    .filter(({ rows }) => rows.length)
+    .map(({ race, rows }) => `
+      <div class="race">
+        ${showTitles ? `<h2>${escapeHtml(race)}</h2>` : ''}
+        <ol>${rows.map(resultRow).join('')}</ol>
+      </div>`).join('');
 }
 
 function render() {
-  renderRunnersSummary();
+  renderRunnersStatus();
   renderBibs();
   renderStarts();
-  renderRecent();
   renderResults();
 }
 
@@ -369,7 +325,7 @@ function csvCell(value) {
 function exportCsv() {
   const header = ['Course', 'Rang', 'Dossard', 'Nom', 'Temps', 'Heure d\'arrivée'];
   const rows = rankedRaces().flatMap((race) => ranking(race).map((f) => [
-    race, f.rank, f.bib ?? '', f.runner?.name ?? '', formatElapsed(f.elapsed), formatClock(f.time),
+    race, f.rank, f.bib, f.runner?.name ?? '', formatElapsed(f.elapsed), formatClock(f.time),
   ]));
   const csv = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n');
   const link = document.createElement('a');
@@ -381,12 +337,12 @@ function exportCsv() {
 
 function confirmed(button) {
   if (!button.hasAttribute('data-confirm') || button.dataset.armed) return true;
-  const label = button.textContent;
+  const label = button.innerHTML;
   button.dataset.armed = '1';
-  button.textContent = 'Confirmer ?';
+  button.textContent = 'Sûr ?';
   setTimeout(() => {
     delete button.dataset.armed;
-    button.textContent = label;
+    button.innerHTML = label;
   }, 3000);
   return false;
 }
@@ -394,8 +350,7 @@ function confirmed(button) {
 function showTab(name) {
   document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === name));
   document.querySelectorAll('.panel').forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
-  if (name !== 'finish') stopScanner();
-  if (name === 'finish') $('#manual-bib').focus();
+  if (name !== 'race') stopScanner();
   try { localStorage.setItem(TAB_KEY, name); } catch {}
 }
 
@@ -417,26 +372,23 @@ function submitManual(event) {
   const bib = parseBib(input.value);
   input.value = '';
   input.focus();
-  if (bib == null) return flash('Numéro invalide', 'warn');
+  if (bib == null) return flash('Numéro invalide', false);
   record(bib, false);
 }
 
 function init() {
   document.addEventListener('click', handleClick);
-  document.addEventListener('change', (e) => e.target.dataset.editBib && updateFinishBib(e.target.dataset.editBib, e.target.value));
-  $('#import-runners').addEventListener('click', importRunners);
-  $('#generate-anon').addEventListener('click', generateAnonymous);
+  $('#save-runners').addEventListener('click', saveRunners);
   $('#print-bibs').addEventListener('click', () => window.print());
   $('#toggle-scan').addEventListener('click', toggleScanner);
   $('#manual-form').addEventListener('submit', submitManual);
-  $('#no-bib').addEventListener('click', () => record(null, false));
   $('#export-csv').addEventListener('click', exportCsv);
   $('#runners-input').value = runnersToText();
-  setInterval(tickClocks, 100);
+  setInterval(tickClocks, 250);
   render();
   let tab = 'runners';
   try { tab = localStorage.getItem(TAB_KEY) || tab; } catch {}
-  showTab(tab);
+  showTab(document.getElementById(`tab-${tab}`) ? tab : 'runners');
 }
 
 init();
